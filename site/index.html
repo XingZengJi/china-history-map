@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中国历代疆域图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: the map is the page. A cinnabar seal + oversized year anchor the side panel;
+   the timeline is a ruler of dynasties along the bottom. Cool celadon neutrals, one red. */
+:root{
+  --paper:#eef0ec; --panel:#f7f8f5; --ink:#1d2422; --ink-2:#59635f; --line:#cdd4ce;
+  --seal:#b8392b; --seal-ink:#fff6ec;
+  --sea:#c8d7d4; --land:#f2f0e7; --coast:#8ea09b; --river:#7ea2af; --border:#2b3431;
+  --p0:#c44a35; --p1:#3f6e9e; --p2:#4c8c72; --p3:#d2a03f; --p4:#a8744a; --p5:#7c5c8d;
+  --p6:#b9b2a2; --p7:#98a5a8; --p8:#a5b296;
+  --band-a:#dfe4de; --band-b:#d2d9d2;
+  --f-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --f-body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131816; --panel:#1a201e; --ink:#e7eae4; --ink-2:#9ba6a1; --line:#2f3936;
+    --seal:#cf4f3b; --seal-ink:#fff3e6;
+    --sea:#0f181a; --land:#252c29; --coast:#56645f; --river:#3d6370; --border:#0b0f0e;
+    --p0:#cc5740; --p1:#4f80b4; --p2:#559a7e; --p3:#cfa24c; --p4:#b07f57; --p5:#8d6ea1;
+    --p6:#6c685d; --p7:#5a686b; --p8:#647159;
+    --band-a:#262e2b; --band-b:#2e3734;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131816; --panel:#1a201e; --ink:#e7eae4; --ink-2:#9ba6a1; --line:#2f3936;
+  --seal:#cf4f3b; --seal-ink:#fff3e6;
+  --sea:#0f181a; --land:#252c29; --coast:#56645f; --river:#3d6370; --border:#0b0f0e;
+  --p0:#cc5740; --p1:#4f80b4; --p2:#559a7e; --p3:#cfa24c; --p4:#b07f57; --p5:#8d6ea1;
+  --p6:#6c685d; --p7:#5a686b; --p8:#647159;
+  --band-a:#262e2b; --band-b:#2e3734;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.65 var(--f-body);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible,.track:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+h1,h2,p{margin:0}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr) 384px;height:100%}
+.stage{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0}
+
+/* ---------- map ---------- */
+.map{position:relative;overflow:hidden;background:var(--sea);min-height:280px;touch-action:pan-y;cursor:grab}
+.map.zoomed{touch-action:none}
+.map.hit{cursor:pointer}
+.map canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;line-height:1.2;
+  text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 6px var(--land),0 0 1px var(--land)}
+.lb.mj{font-family:var(--f-display);font-weight:700;letter-spacing:.12em;margin-left:.06em;color:var(--ink)}
+.lb.core{font-weight:900}
+.lb.mn{color:var(--ink);opacity:.82}
+.lb.lz{color:var(--ink);opacity:.9;font-style:normal;border-bottom:1px dashed currentColor;padding-bottom:1px}
+.lb.tx{font-family:var(--f-display);font-weight:500;color:var(--ink);opacity:.72}
+.lb.rv{color:var(--river);font-family:var(--f-display);font-weight:500;letter-spacing:.3em;filter:saturate(1.4) brightness(.8)}
+.cap{position:absolute;width:0;height:0}
+.cap i{position:absolute;left:-4px;top:-4px;width:8px;height:8px;border:1.5px solid var(--ink);background:var(--panel);transform:rotate(45deg)}
+.cap b{position:absolute;font-weight:500;font-size:11.5px;white-space:nowrap;line-height:1;color:var(--ink);
+  text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 5px var(--land)}
+.cap b.r{left:9px;top:-6px}.cap b.l{right:9px;top:-6px}.cap b.d{left:0;top:9px;transform:translateX(-50%)}.cap b.u{left:0;bottom:9px;transform:translateX(-50%)}
+
+.mast{position:absolute;left:16px;top:16px;max-width:min(320px,calc(100% - 84px));padding:10px 14px 11px;background:var(--panel);
+  border:1px solid var(--line);border-left:3px solid var(--seal)}
+.mast h1{font:900 20px/1.25 var(--f-display);letter-spacing:.14em;text-wrap:balance}
+.mast p{font-size:12px;color:var(--ink-2);margin-top:3px}
+.mast p b{color:var(--ink);font-weight:600}
+.zoom{position:absolute;right:16px;top:16px;display:flex;flex-direction:column;border:1px solid var(--line);background:var(--panel)}
+.zoom button{width:34px;height:34px;display:grid;place-items:center;font-size:18px;line-height:1}
+.zoom button+button{border-top:1px solid var(--line)}
+.zoom button:hover{background:var(--band-a)}
+.zoom svg{width:15px;height:15px}
+.legend{position:absolute;left:16px;bottom:14px;display:flex;flex-wrap:wrap;gap:4px 14px;max-width:calc(100% - 32px);
+  padding:6px 10px;background:var(--panel);border:1px solid var(--line);font-size:11.5px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sw{width:14px;height:10px;display:inline-block;background:var(--c,var(--p0));border:1px solid color-mix(in srgb,var(--border) 45%,transparent)}
+.sw.hx{background:repeating-linear-gradient(135deg,var(--c,var(--p0)) 0 1.5px,transparent 1.5px 4.5px),color-mix(in srgb,var(--c,var(--p0)) 22%,var(--land))}
+.sw.cp{width:8px;height:8px;border:1.5px solid var(--ink);background:var(--panel);transform:rotate(45deg);margin:0 3px}
+.tip{position:absolute;pointer-events:none;padding:3px 9px;background:var(--ink);color:var(--paper);font-size:12px;white-space:nowrap;
+  transform:translate(-50%,-140%);z-index:3}
+
+/* ---------- timeline ---------- */
+.timeline{display:flex;align-items:stretch;gap:14px;padding:12px 18px 10px 16px;background:var(--panel);border-top:1px solid var(--line)}
+.ctrl{display:flex;flex-direction:column;justify-content:center;gap:8px;flex:none}
+.ctrl .row{display:flex;gap:6px;align-items:center}
+.ib{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);background:var(--paper)}
+.ib:hover{border-color:var(--ink-2)}
+.ib svg{width:14px;height:14px;fill:currentColor}
+.ib.play{width:44px;background:var(--seal);border-color:var(--seal);color:var(--seal-ink)}
+.speed{display:flex;border:1px solid var(--line);font-size:12px}
+.speed button{padding:2px 0;width:38.6px;color:var(--ink-2)}
+.speed button+button{border-left:1px solid var(--line)}
+.speed button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.track{position:relative;flex:1;min-width:0;height:86px;cursor:ew-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.evts{position:absolute;left:0;right:0;top:26px;height:8px}
+.evts i{position:absolute;bottom:0;width:1px;height:5px;background:var(--ink-2);opacity:.55}
+.evts i.past{opacity:.9;background:var(--ink)}
+.evts i.now{height:8px;width:2px;margin-left:-.5px;background:var(--seal);opacity:1}
+.band{position:absolute;left:0;right:0;top:36px;height:26px;overflow:hidden}
+.seg{position:absolute;top:0;bottom:0;display:grid;place-items:center;overflow:hidden;font:700 12.5px/1 var(--f-display);letter-spacing:.02em;
+  background:var(--band-a);color:var(--ink);border-left:1px solid var(--panel)}
+.seg:nth-child(even){background:var(--band-b)}
+.seg.on{background:var(--seal);color:var(--seal-ink)}
+.seg span{white-space:nowrap}
+.seg.tight span{visibility:hidden}
+.axis{position:absolute;left:0;right:0;top:62px;height:22px;font-size:10.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.axis span{position:absolute;top:7px;transform:translateX(-50%);white-space:nowrap}
+.axis span::before{content:"";position:absolute;left:50%;top:-7px;width:1px;height:5px;background:var(--ink-2);opacity:.6}
+.axis span:first-child{transform:none}.axis span:first-child::before{left:0}
+.axis span:last-child{transform:translateX(-100%)}.axis span:last-child::before{left:100%}
+.needle{position:absolute;top:22px;bottom:22px;width:2px;margin-left:-1px;background:var(--ink);pointer-events:none}
+.needle::after{content:"";position:absolute;left:-4px;bottom:-5px;border:5px solid transparent;border-bottom-color:var(--ink);border-top:0}
+.flag{position:absolute;top:0;height:21px;padding:0 9px;display:flex;align-items:center;gap:7px;background:var(--ink);color:var(--panel);
+  font-size:12px;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.flag b{font:700 12.5px/1 var(--f-display);letter-spacing:.06em}
+
+/* ---------- panel ---------- */
+.panel{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;min-height:0;padding:22px 22px 28px;display:flex;flex-direction:column;gap:22px}
+.head{display:flex;gap:16px;align-items:flex-start}
+.seal{flex:none;width:84px;height:84px;background:var(--seal);color:var(--seal-ink);font:900 30px/1 var(--f-display);
+  display:grid;place-items:center;box-shadow:inset 0 0 0 3px var(--seal),inset 0 0 0 4.5px color-mix(in srgb,var(--seal-ink) 85%,transparent);border-radius:5px}
+.seal[data-n="1"]{font-size:52px}
+.seal[data-n="2"]{grid-template-rows:1fr 1fr;padding:9px 0;font-size:31px}
+.seal[data-n="3"],.seal[data-n="4"]{grid-template:1fr 1fr/1fr 1fr;grid-auto-flow:column;direction:rtl;padding:10px;font-size:27px}
+.seal[data-n="3"] span:nth-child(3){grid-row:span 2}
+.when{min-width:0;flex:1}
+.era{font-size:12px;letter-spacing:.3em;color:var(--ink-2)}
+.yr{font:900 54px/1 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:1px 0 6px;white-space:nowrap}
+.yr small{font-size:18px;font-weight:700;margin-left:6px}
+.pname{font:700 16px/1.35 var(--f-display);letter-spacing:.06em}
+.pname span{font:400 12.5px var(--f-body);color:var(--ink-2);letter-spacing:0;margin-left:8px;font-variant-numeric:tabular-nums}
+.capline{font-size:12.5px;color:var(--ink-2);margin-top:8px}
+.capline b{font-weight:500;color:var(--ink)}
+.blurb{font-size:14.5px;line-height:1.85;text-wrap:pretty}
+.tbtn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);border:1px solid var(--line);padding:3px 10px 3px 8px;margin-top:10px}
+.tbtn:hover{color:var(--ink);border-color:var(--ink-2)}
+.tbtn svg{width:13px;height:13px;fill:currentColor}
+.tbtn.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+body:not(.has-tts) .tts{display:none}
+.sec h2{font:500 12px/1 var(--f-body);letter-spacing:.28em;color:var(--ink-2);padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:10px;
+  display:flex;justify-content:space-between;align-items:baseline}
+.sec h2 em{font-style:normal;letter-spacing:0;font-size:11.5px}
+.pols{display:flex;flex-wrap:wrap;gap:6px}
+.pol{display:inline-flex;align-items:center;gap:7px;padding:3px 10px 3px 7px;border:1px solid var(--line);font-size:13px;background:var(--paper)}
+.pol:hover,.pol.hv{border-color:var(--ink-2)}
+.pol[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.pol .sw{width:12px;height:12px}
+.note{margin-top:10px;padding:10px 12px;border-left:3px solid var(--ink);background:var(--paper);font-size:13.5px}
+.note b{font:700 14.5px var(--f-display);letter-spacing:.06em;display:block;margin-bottom:2px}
+.note button{margin-top:6px;font-size:12.5px;color:var(--seal);text-decoration:underline;text-underline-offset:3px}
+.evl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.evl button{display:grid;grid-template-columns:62px 1fr;gap:10px;width:100%;text-align:left;padding:5px 6px 5px 8px;border-left:2px solid var(--line);color:var(--ink-2);font-size:13.5px;line-height:1.55}
+.evl button:hover{background:var(--paper);color:var(--ink)}
+.evl time{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.evl .past button{color:var(--ink);border-left-color:var(--ink-2)}
+.evl .now button{border-left-color:var(--seal);background:var(--paper);color:var(--ink)}
+.evl .now time{color:var(--seal);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--line);padding:4px 11px;font-size:13px;background:var(--paper);text-align:left}
+.chip:hover{border-color:var(--ink-2)}
+.chip.pri{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.askf{display:flex;gap:6px}
+.askf input{flex:1;min-width:0;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);padding:7px 10px;border-radius:0}
+.askf button{padding:0 14px;background:var(--seal);color:var(--seal-ink);font-weight:500}
+.askf button:disabled,.chip:disabled{opacity:.5;cursor:default}
+.qa{margin-top:12px;border-left:3px solid var(--seal);padding:2px 0 2px 12px}
+.qa .q{font-size:12.5px;color:var(--ink-2);margin-bottom:4px}
+.qa .a{font-size:14.5px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere}
+.qa .bar{display:flex;gap:8px;flex-wrap:wrap}
+.msg{font-size:12.5px;color:var(--ink-2);margin-top:8px}
+.stops{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;counter-reset:s}
+.stops button{display:block;width:100%;text-align:left;padding:8px 12px;border:1px solid var(--line);background:var(--paper)}
+.stops button:hover{border-color:var(--ink-2)}
+.stops .on button{border-color:var(--seal);box-shadow:inset 3px 0 0 var(--seal)}
+.stops b{font:700 14px var(--f-display);letter-spacing:.04em}
+.stops time{font-size:12px;color:var(--ink-2);margin-left:8px;font-variant-numeric:tabular-nums}
+.stops p{font-size:13.5px;line-height:1.75;margin-top:2px}
+.foot{font-size:11.5px;line-height:1.7;color:var(--ink-2);border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
+.foot a{color:inherit}
+[hidden]{display:none!important}
+
+@media (max-width:900px){
+  html,body{height:auto}
+  .app{display:block;height:auto}
+  .stage{display:block}
+  .map{height:min(78vw,62vh)}
+  .timeline{flex-direction:column;gap:6px;padding:10px 16px 8px;border-bottom:1px solid var(--line)}
+  .track{flex:none}
+  .mast .long{display:none}
+  .ctrl{flex-direction:row;justify-content:space-between}
+  .panel{border-left:0;overflow:visible;padding:20px 16px 28px}
+  .mast{left:10px;top:10px;padding:7px 10px 8px}
+  .mast h1{font-size:15px}
+  .mast p{font-size:11px;margin-top:1px}
+  .zoom{right:10px;top:10px}
+  .legend{left:10px;bottom:10px;font-size:11px}
+  .yr{font-size:46px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="stage">
+    <div class="map" id="map">
+      <canvas id="cv" aria-label="中国历代疆域示意地图"></canvas>
+      <div class="labels" id="labels" aria-hidden="true"></div>
+      <header class="mast">
+        <h1>中国历代疆域图</h1>
+        <p><span class="long">夏至今，约前2070—2026 · </span><b id="snap"></b></p>
+      </header>
+      <div class="zoom">
+        <button id="zin" type="button" aria-label="放大">+</button>
+        <button id="zout" type="button" aria-label="缩小">−</button>
+        <button id="zreset" type="button" aria-label="恢复全图"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg></button>
+      </div>
+      <div class="legend">
+        <span><i class="sw"></i>直接统治</span>
+        <span><i class="sw hx"></i>松散管辖 · 占领区 · 争议区</span>
+        <span><i class="sw cp"></i>都城</span>
+        <span>边界均为示意</span>
+      </div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <section class="timeline" aria-label="时间轴">
+      <div class="ctrl">
+        <div class="row">
+          <button class="ib" id="prev" type="button" aria-label="上一个时期"><svg viewBox="0 0 14 14"><path d="M2 2h2v10H2zM12 2v10L5 7z"/></svg></button>
+          <button class="ib play" id="play" type="button" aria-label="播放"><svg viewBox="0 0 14 14" id="playico"><path d="M3 1.5v11l9-5.5z"/></svg></button>
+          <button class="ib" id="next" type="button" aria-label="下一个时期"><svg viewBox="0 0 14 14"><path d="M10 2h2v10h-2zM2 2v10l7-5z"/></svg></button>
+        </div>
+        <div class="speed" role="group" aria-label="播放速度">
+          <button type="button" data-s="20" aria-pressed="false">慢</button>
+          <button type="button" data-s="60" aria-pressed="true">中</button>
+          <button type="button" data-s="160" aria-pressed="false">快</button>
+        </div>
+      </div>
+      <div class="track" id="track" role="slider" tabindex="0" aria-label="年份" aria-valuemin="-2070" aria-valuemax="2026">
+        <div class="flag" id="flag"></div>
+        <div class="evts" id="evts"></div>
+        <div class="band" id="band"></div>
+        <div class="axis" id="axis"></div>
+        <div class="needle" id="needle"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="panel" id="panel">
+    <div>
+      <div class="head">
+        <div class="seal" id="seal" aria-hidden="true"></div>
+        <div class="when">
+          <div class="era" id="era"></div>
+          <div class="yr" id="yr"></div>
+          <div class="pname" id="pname"></div>
+        </div>
+      </div>
+      <p class="capline">都城　<b id="capital"></b></p>
+    </div>
+    <div>
+      <p class="blurb" id="blurb"></p>
+      <button class="tbtn tts" id="readbtn" type="button"><svg viewBox="0 0 14 14"><path d="M1 5h3l4-3v10L4 9H1zM10 4.2a4 4 0 010 5.6l-.9-.9a2.7 2.7 0 000-3.8z"/></svg><span>朗读这一段</span></button>
+    </div>
+
+    <section class="sec" id="ai">
+      <h2>Claude 讲解<em id="aimode"></em></h2>
+      <div id="aibody">
+        <div class="chips" id="chips">
+          <button class="chip pri" type="button" id="tourbtn"></button>
+          <button class="chip" type="button" data-q="这一年前后发生了什么？">这一年前后发生了什么？</button>
+          <button class="chip" type="button" data-q="此时的疆域为什么是这个样子？">此时的疆域为什么是这样？</button>
+          <button class="chip" type="button" data-q="带我去看这个时期疆域变化最大的一年，并讲讲原因。">带我去看变化最大的一年</button>
+        </div>
+        <form class="askf" id="askf">
+          <input id="q" type="text" autocomplete="off" maxlength="200" aria-label="向 Claude 提问">
+          <button type="submit" id="askbtn">提问</button>
+        </form>
+        <div class="qa" id="qa" hidden>
+          <div class="q" id="qtext"></div>
+          <div class="a" id="atext" aria-live="polite"></div>
+          <div class="bar">
+            <button class="tbtn" id="stopbtn" type="button" hidden>停止</button>
+            <button class="tbtn tts" id="readans" type="button" hidden><svg viewBox="0 0 14 14"><path d="M1 5h3l4-3v10L4 9H1zM10 4.2a4 4 0 010 5.6l-.9-.9a2.7 2.7 0 000-3.8z"/></svg><span>朗读回答</span></button>
+          </div>
+        </div>
+        <div id="tour" hidden>
+          <ol class="stops" id="stops"></ol>
+          <button class="tbtn tts" id="readtour" type="button"><svg viewBox="0 0 14 14"><path d="M1 5h3l4-3v10L4 9H1zM10 4.2a4 4 0 010 5.6l-.9-.9a2.7 2.7 0 000-3.8z"/></svg><span>逐站朗读，地图同步</span></button>
+        </div>
+      </div>
+      <p class="msg" id="aimsg" hidden></p>
+    </section>
+
+    <section class="sec">
+      <h2>此时版图<em>点选查看</em></h2>
+      <div class="pols" id="pols"></div>
+      <div class="note" id="note" hidden></div>
+    </section>
+
+    <section class="sec">
+      <h2>大事记<em>点选跳转</em></h2>
+      <ol class="evl" id="evl"></ol>
+    </section>
+
+    <p class="foot">疆域为示意，不代表精确边界。政权轮廓改绘自开放数据集 <a href="https://github.com/aourednik/historical-basemaps">historical-basemaps</a>（GPL-3.0），并按史实校订了归属与年代；三国、宋金分界和西域都护府范围为手绘示意。1912年以后以 Natural Earth 的今日国界为底，按实际管辖着色（台湾自1949年起与大陆同色），不代表对主权归属的判断；日军占领区和中印争议地区为手绘示意，南海诸岛等未标绘。海岸线与河流来自 Natural Earth。</p>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="data.js"></script>
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const A=window.ATLAS, POL=A.pol;
+const Y0=-2070, Y1=2026;
+
+/* ---------------- content ---------------- */
+const PERIODS=[
+ {id:"xia",n:"夏",seal:"夏",y0:-2070,y1:-1601,span:"约前2070—约前1600",cap:"斟鄩（今河南偃师二里头一带）",d:"传世文献记载的第一个世袭王朝，相传禹之子启废禅让而立。年代据夏商周断代工程推定；一般认为洛阳盆地的二里头遗址与夏文化有关，其范围只能大致示意。"},
+ {id:"shang",n:"商",seal:"商",y0:-1600,y1:-1047,span:"约前1600—前1046",cap:"亳、殷（今河南安阳）等",d:"汤灭夏建商，都城屡迁，盘庚迁殷后才稳定下来。甲骨文与青铜器是这个时代的标志；王朝直接控制中原腹地，四周是大小方国与部族。"},
+ {id:"wzhou",n:"西周",seal:"西周",y0:-1046,y1:-771,span:"前1046—前771",cap:"镐京（今陕西西安西南）",d:"武王伐纣灭商，周公东征后大行分封，诸侯拱卫王室，礼乐制度成形。公元前771年犬戎攻破镐京，西周结束。"},
+ {id:"chunqiu",n:"春秋",seal:"春秋",y0:-770,y1:-476,span:"前770—前476",cap:"洛邑（今河南洛阳，周王室所在）",d:"平王东迁后王室衰微，齐、晋、楚、秦、吴、越等大国相继争霸。铁器与牛耕开始推广，孔子、老子等思想家登场。"},
+ {id:"zhanguo",n:"战国",seal:"战国",y0:-475,y1:-222,span:"前475—前221",cap:"各国自有都城：咸阳、邯郸、临淄、郢等",d:"三家分晋、田氏代齐之后七雄并立，各国变法图强，兼并战争空前激烈，诸子百家争鸣。秦经商鞅变法后国力日盛，最终逐一灭掉六国。"},
+ {id:"qin",n:"秦",seal:"秦",y0:-221,y1:-207,span:"前221—前207",cap:"咸阳",d:"嬴政灭六国，建立第一个中央集权的统一王朝，自称始皇帝。废分封、行郡县，统一文字、度量衡与车轨，北击匈奴，南平百越。秦二世而亡。"},
+ {id:"whan",n:"西汉",seal:"西汉",y0:-206,y1:8,span:"前202—公元8",cap:"长安（今陕西西安）",d:"刘邦击败项羽后称帝。经文景两朝休养生息，武帝北击匈奴、通西域、平南越与朝鲜，设河西四郡；公元前60年设西域都护府。"},
+ {id:"xin",n:"新",seal:"新",y0:9,y1:24,span:"9—23",cap:"常安（即长安）",d:"外戚王莽代汉称帝，国号新，托古改制却激起社会动荡，绿林、赤眉起义相继爆发。公元23年王莽被杀，其后更始政权短暂延续。"},
+ {id:"ehan",n:"东汉",seal:"东汉",y0:25,y1:219,span:"25—220",cap:"洛阳",d:"刘秀重建汉室，定都洛阳。班超经营西域，北匈奴西迁；中后期外戚与宦官交替专权，184年黄巾起义后州牧割据，汉室名存实亡。"},
+ {id:"sanguo",n:"三国",seal:"三国",y0:220,y1:279,span:"220—280",cap:"洛阳（魏）、成都（蜀汉）、建业（吴）",d:"曹丕代汉建魏，刘备、孙权相继称帝，三分天下。263年魏灭蜀，266年司马炎代魏建晋，280年晋灭吴，重归一统。"},
+ {id:"wjin",n:"西晋",seal:"西晋",y0:280,y1:316,span:"266—316",cap:"洛阳",d:"司马炎建晋并灭吴，实现短暂统一。八王之乱耗尽国力，内迁的匈奴、鲜卑、羯、氐、羌相继起兵；311年洛阳陷落，316年长安失守，西晋灭亡。"},
+ {id:"ejin",n:"东晋十六国",seal:"东晋",y0:317,y1:419,span:"317—420",cap:"建康（今江苏南京）",d:"晋室南渡，在建康延续国祚；北方先后出现十余个政权，史称十六国。383年淝水之战，东晋击退前秦，南北对峙之势得以延续。"},
+ {id:"nanbei",n:"南北朝",seal:"南北朝",y0:420,y1:588,span:"420—589",cap:"建康（南朝）；平城、洛阳、邺、长安（北朝）",d:"南方宋、齐、梁、陈相继更替；北方由北魏统一，孝文帝迁都洛阳推行汉化，其后分裂为东魏、西魏，再演变为北齐、北周。南北长期对峙，民族交融加深。"},
+ {id:"sui",n:"隋",seal:"隋",y0:589,y1:617,span:"581—618",cap:"大兴（即长安），东都洛阳",d:"杨坚代北周建隋，589年灭陈，结束近三百年的分裂。创立三省六部与科举，开凿大运河贯通南北；炀帝三征高句丽，民变四起，隋朝速亡。"},
+ {id:"tang",n:"唐",seal:"唐",y0:618,y1:906,span:"618—907",cap:"长安，东都洛阳",d:"唐前期国力鼎盛，先后击灭东、西突厥，设安西、北庭、安东等都护府；690至705年武则天改国号为周。安史之乱后藩镇割据，河西、陇右陷于吐蕃，唐朝由盛转衰。"},
+ {id:"wudai",n:"五代十国",seal:"五代",y0:907,y1:959,span:"907—960",cap:"开封、洛阳",d:"朱温篡唐后，中原先后经历后梁、后唐、后晋、后汉、后周五个朝代，南方与河东并存十个割据政权。契丹崛起于北方，并取得燕云十六州。"},
+ {id:"nsong",n:"北宋",seal:"北宋",y0:960,y1:1126,span:"960—1127",cap:"东京开封府",d:"赵匡胤陈桥兵变建宋，逐步消灭南方诸国与北汉。北宋与辽、西夏长期并立，靠澶渊之盟等和约维持边界，经济文化高度繁荣。1127年靖康之变，北宋灭亡。"},
+ {id:"ssong",n:"南宋",seal:"南宋",y0:1127,y1:1278,span:"1127—1279",cap:"临安（今浙江杭州）",d:"宋室南迁，与金大致以秦岭、淮河为界对峙。蒙古兴起后先后灭西夏与金，1271年忽必烈定国号为元，1276年攻入临安，1279年崖山海战后南宋灭亡。"},
+ {id:"yuan",n:"元",seal:"元",y0:1279,y1:1367,span:"1271—1368",cap:"大都（今北京）",d:"忽必烈建立的元朝是第一个由北方民族统一全国的王朝，创行省制度，设宣政院管辖吐蕃地区，疆域空前辽阔。元末红巾军起义，1368年元廷北退草原。"},
+ {id:"ming",n:"明",seal:"明",y0:1368,y1:1643,span:"1368—1644",cap:"应天府（南京），1421年迁都北京",d:"朱元璋建明，成祖迁都北京并遣郑和七下西洋。明朝修筑长城防御蒙古，曾在东北设奴儿干都司，封授乌斯藏诸法王。后期内外交困，1644年李自成攻入北京。"},
+ {id:"qing",n:"清",seal:"清",y0:1644,y1:1911,span:"1644—1912",cap:"北京",d:"清军入关后逐步统一全国：1683年统一台湾，康雍乾三朝平定准噶尔、治理西藏，1759年统一天山南北。1840年后列强入侵，领土多有割让；1912年清帝退位，帝制终结。"},
+ {id:"minguo",n:"中华民国",seal:"民国",b:"民国",y0:1912,y1:1948,span:"1912—1949（大陆时期）",say:"1912至1949年。",cap:"北京（至1928年）、南京；抗战时期为重庆",d:"1912年中华民国成立，随后进入北洋政府与军阀割据时期；外蒙古在俄国支持下脱离，西藏由噶厦政府实际管治。1928年国民政府形式上统一全国。1931年日本侵占东北并扶植满洲国，1937年全面侵华；1945年抗战胜利，中国收回东北、台湾和澎湖，次年承认外蒙古独立，国共内战随即全面爆发。"},
+ {id:"prc",n:"中华人民共和国",seal:"共和国",b:"共和国",y0:1949,y1:2026,span:"1949—今",say:"1949年至今。",cap:"北京",d:"1949年10月中华人民共和国成立，中华民国政府迁往台北，两岸自此分治。1951年《十七条协议》签订后西藏归中央政府管辖；1997年香港、1999年澳门先后回归。中国已同14个陆上邻国中的12个划定边界，与印度、不丹的边界仍在谈判；台湾地位以及东海、南海部分岛礁的归属存在争议。图上台湾与大陆同色，其余按实际管辖着色。"}
+];
+const EVENTS=[
+ [-2070,"相传禹建立夏朝（年代为推定）"],[-1600,"商汤灭夏，建立商朝"],[-1300,"盘庚迁殷（约）"],
+ [-1046,"武王伐纣，牧野之战，西周建立"],[-841,"国人暴动，共和行政；中国历史有确切纪年之始"],[-771,"犬戎攻破镐京，西周灭亡"],
+ [-770,"周平王东迁洛邑"],[-651,"葵丘之会，齐桓公称霸"],[-632,"城濮之战，晋文公称霸"],[-551,"孔子出生"],
+ [-453,"韩、赵、魏三家分晋"],[-356,"商鞅在秦国开始变法"],[-260,"长平之战，秦大败赵军"],
+ [-221,"秦灭齐，统一六国；嬴政称始皇帝"],[-214,"秦取岭南设三郡；蒙恬北击匈奴，修筑长城"],[-209,"陈胜、吴广起义"],[-207,"巨鹿之战，秦军主力覆灭；数月后秦亡"],
+ [-202,"垓下之战，刘邦称帝，西汉建立"],[-138,"张骞首次出使西域"],[-121,"霍去病取河西走廊"],[-119,"卫青、霍去病漠北之战"],[-111,"汉平南越"],[-108,"汉灭卫氏朝鲜，设乐浪等四郡"],[-60,"汉设西域都护府"],
+ [9,"王莽代汉，建立新朝"],[23,"昆阳之战；王莽败亡"],
+ [25,"刘秀称帝，定都洛阳"],[73,"班超出使西域"],[91,"窦宪大破北匈奴，北匈奴西迁"],[105,"蔡伦改进造纸术"],[184,"黄巾起义"],[200,"官渡之战"],[208,"赤壁之战"],
+ [220,"曹丕代汉，魏国建立"],[221,"刘备在成都称帝"],[229,"孙权称帝"],[263,"魏灭蜀汉"],[266,"司马炎代魏，建立晋朝"],
+ [280,"晋灭吴，三国归晋"],[291,"八王之乱开始"],[304,"刘渊起兵称汉王，十六国之始"],[311,"永嘉之乱，洛阳陷落"],[316,"长安陷落，西晋灭亡"],
+ [317,"司马睿在建康重建晋室，史称东晋"],[376,"前秦统一北方"],[383,"淝水之战"],[386,"拓跋珪复国，北魏之始"],
+ [420,"刘裕代晋建宋，南朝开始"],[439,"北魏统一北方"],[494,"北魏孝文帝迁都洛阳"],[534,"北魏分裂为东魏、西魏"],[548,"侯景之乱"],[577,"北周灭北齐"],[581,"杨坚代周，建立隋朝"],
+ [589,"隋灭陈，统一南北"],[605,"开凿大运河"],[612,"隋炀帝首征高句丽"],
+ [618,"李渊称帝，唐朝建立"],[630,"唐灭东突厥"],[640,"唐平高昌，设安西都护府"],[641,"文成公主入藏"],[657,"唐灭西突厥"],[668,"唐与新罗灭高句丽，设安东都护府"],[690,"武则天称帝，改国号为周"],[698,"大祚荣建国，后称渤海"],[702,"设北庭都护府"],[751,"怛罗斯之战"],[755,"安史之乱爆发"],
+ [763,"安史之乱平定；吐蕃一度攻入长安"],[821,"唐蕃长庆会盟"],[840,"回鹘汗国为黠戛斯所破"],[842,"吐蕃王朝瓦解"],[875,"黄巢起义"],
+ [907,"朱温代唐，建立后梁"],[916,"耶律阿保机称帝，建立契丹"],[938,"后晋割让燕云十六州"],
+ [960,"陈桥兵变，赵匡胤建立宋朝"],[979,"宋灭北汉"],[1005,"宋辽澶渊之盟"],[1038,"元昊称帝，建立西夏"],[1044,"宋夏庆历和议"],[1069,"王安石变法"],[1115,"完颜阿骨打建立金朝"],[1125,"金灭辽"],
+ [1127,"靖康之变，北宋亡；赵构即位，南宋开始"],[1141,"宋金绍兴和议"],[1206,"铁木真统一蒙古，称成吉思汗"],[1218,"蒙古灭西辽"],[1227,"蒙古灭西夏"],[1234,"蒙古与南宋联合灭金"],[1253,"蒙古灭大理"],[1271,"忽必烈定国号为大元"],[1276,"元军攻入临安"],
+ [1279,"崖山海战，南宋灭亡"],[1351,"红巾军起义"],
+ [1368,"朱元璋称帝，明朝建立；元廷北退"],[1382,"明平定云南"],[1405,"郑和首次下西洋"],[1409,"明设奴儿干都司"],[1421,"明成祖迁都北京"],[1449,"土木之变"],[1571,"隆庆和议，俺答封贡"],[1592,"万历援朝之役开始"],[1616,"努尔哈赤建立后金"],[1624,"荷兰人占据台湾南部"],[1636,"皇太极改国号为清"],
+ [1644,"李自成入北京，明亡；清军入关"],[1662,"郑成功驱逐荷兰人，收复台湾"],[1673,"三藩之乱爆发"],[1683,"清军入台，次年设台湾府"],[1689,"中俄《尼布楚条约》"],[1696,"昭莫多之战，康熙击败噶尔丹"],[1720,"清军入藏，驱逐准噶尔"],[1727,"清设驻藏大臣"],[1759,"清平定大小和卓，统一天山南北"],[1793,"马戛尔尼使团访华"],
+ [1840,"鸦片战争爆发"],[1842,"《南京条约》，割让香港岛"],[1851,"太平天国起义"],[1858,"《瑷珲条约》"],[1860,"《北京条约》，失乌苏里江以东之地"],[1884,"新疆建省"],[1885,"台湾建省"],[1894,"甲午战争爆发"],[1895,"《马关条约》，割让台湾"],[1898,"戊戌变法"],[1900,"八国联军侵华"],[1911,"武昌起义，辛亥革命爆发；外蒙古宣布独立"],
+ [1912,"中华民国成立；清帝退位"],[1915,"中俄蒙《恰克图协约》，外蒙古改为自治"],[1916,"袁世凯称帝失败后去世，军阀割据开始"],[1919,"五四运动；北洋政府取消外蒙古自治"],[1921,"中国共产党成立；外蒙古在苏俄支持下再度独立"],[1924,"蒙古人民共和国成立"],[1926,"国民革命军北伐"],[1928,"东北易帜，国民政府形式上统一全国"],
+ [1931,"九一八事变，日本侵占东北"],[1932,"日本扶植满洲国"],[1934,"红军开始长征"],[1937,"卢沟桥事变，全面抗战爆发；国民政府迁往重庆"],[1941,"太平洋战争爆发，日军占领香港"],[1945,"日本投降；中国收回东北、台湾和澎湖"],[1946,"国民政府承认外蒙古独立；国共内战全面爆发"],[1947,"台湾二二八事件"],
+ [1949,"中华人民共和国成立；中华民国政府迁往台北"],[1950,"解放军攻占海南岛；中国人民志愿军入朝参战"],[1951,"《十七条协议》签订，解放军进驻拉萨"],[1955,"苏联交还旅顺口"],[1959,"拉萨发生武装冲突，十四世达赖喇嘛出走印度"],[1962,"中印边境战争"],[1964,"中国第一颗原子弹爆炸成功"],[1966,"文化大革命开始"],[1969,"中苏珍宝岛冲突"],
+ [1971,"联合国大会第2758号决议，中华人民共和国取得中国代表权"],[1972,"尼克松访华；中日建交"],[1976,"毛泽东去世，文化大革命结束"],[1978,"改革开放开始"],[1979,"中美建交；中越边境战争"],[1989,"六四事件"],[1991,"苏联解体，中国西北出现三个新邻国"],
+ [1997,"香港回归"],[1999,"澳门回归"],[2001,"中国加入世界贸易组织"],[2008,"北京奥运会；中俄边界全线划定"],[2017,"中印洞朗对峙"],[2020,"中印加勒万河谷冲突"]
+];
+const CAPS=[
+ ["斟鄩",112.69,34.70,-2070,-1601],["亳",113.65,34.75,-1600,-1301],["殷",114.32,36.13,-1300,-1047],["镐京",108.75,34.22,-1046,-771],
+ ["洛邑",112.45,34.67,-770,-222],["咸阳",108.71,34.36,-350,-207],["长安",108.90,34.31,-202,24],["洛阳",112.45,34.67,25,316],
+ ["成都",104.07,30.66,221,263],["建业",118.78,32.06,229,279],["建康",118.78,32.06,317,588],["平城",113.30,40.09,398,493],
+ ["洛阳",112.45,34.67,494,534],["邺",114.60,36.33,535,577],["长安",108.90,34.31,535,906],["逻些",91.13,29.65,633,842],
+ ["大理",100.20,25.70,738,1253],["龟兹",82.97,41.72,658,790],["乌垒",84.25,41.78,-60,16],
+ ["开封",114.35,34.80,907,1126],["上京",119.39,43.97,918,1120],["兴庆府",106.27,38.47,1038,1227],
+ ["会宁府",126.97,45.47,1127,1152],["中都",116.39,39.92,1153,1214],["临安",120.16,30.25,1138,1276],["和林",102.83,47.20,1235,1263],
+ ["大都",116.39,39.92,1272,1367],["应天府",118.78,32.06,1368,1420],["北京",116.39,39.92,1421,1927],["盛京",123.43,41.80,1625,1643],
+ ["南京",118.78,32.06,1928,1937],["重庆",106.55,29.56,1938,1945],["南京",118.78,32.06,1946,1948],["北京",116.39,39.92,1949,2026],["台北",121.56,25.04,1949,2026],
+ ["新京",125.32,43.88,1932,1945],["库伦",106.92,47.92,1912,1923],["乌兰巴托",106.92,47.92,1924,2026],["拉萨",91.13,29.65,1912,1950]
+];
+const RIVERS=[["黄河",107.6,40.95],["长江",111.6,30.15],["黑龙江",128.0,49.9],["塔里木河",83.5,40.75],["雅鲁藏布江",88.5,29.15]];
+const NOTES={
+ xia:"文献所载的第一个王朝，范围据二里头文化的分布大致示意。",shang:"以中原为核心的青铜王朝，图示为其势力所及的大致范围。",wzhou:"以分封诸侯拱卫王室，图示为周人势力所及的大致范围。",
+ chunqiu:"周王室名义下的诸侯列国，大国相继争霸。",zhanguo:"齐、楚、燕、韩、赵、魏六国，与秦合称战国七雄。",qinstate:"据有关中，商鞅变法后崛起，前221年完成统一。",yue:"都于会稽的越国，曾灭吴称霸，约前306年为楚所败。",
+ qin:"第一个统一的中央集权王朝，行郡县制。",whan:"刘邦所建，武帝时疆域大幅拓展。",xin:"王莽代汉所建，只存在了十余年。",ehan:"刘秀重建的汉朝，定都洛阳。",
+ nanyue:"秦将赵佗在岭南所建，前111年为汉所灭。",minyue:"闽地的越人政权，前110年前后并入汉朝。",
+ wei:"曹丕代汉所建，据有北方。",shu:"刘备在成都所建，自称延续汉祚，263年亡于魏。",wu:"孙权所建，据有长江中下游与岭南，280年亡于晋。",
+ wjin:"司马炎代魏所建，280年灭吴，完成统一。",ejin:"晋室南渡后在建康延续的政权。",s16:"四世纪至五世纪初，北方与巴蜀先后出现的十余个政权的合称。",hanzhao:"匈奴贵族刘渊于304年所建，十六国之始。",
+ nwei:"北朝：北魏统一北方，后分为东魏、西魏，再为北齐、北周所代。",nan:"南朝：宋、齐、梁、陈四朝相继，都在建康。",
+ sui:"结束南北分裂的统一王朝，二世而亡。",tang:"前期国力鼎盛，势力远及中亚；安史之乱后转衰。",wudai:"中原五个短命王朝与周边十个割据政权的合称。",
+ nsong:"赵匡胤所建，都开封，与辽、西夏并立。",ssong:"靖康之变后宋室在南方的延续，都临安。",liao:"契丹人建立的王朝，据有草原与燕云十六州。",xixia:"党项人建立的政权，都兴庆府（今宁夏银川）。",jin:"女真人建立的王朝，先后灭辽与北宋。",
+ mongol:"成吉思汗于1206年建立，迅速扩张为横跨欧亚的帝国。",yuan:"忽必烈所建，1279年统一全国。",ming:"朱元璋所建，1368年至1644年。",qing:"满洲贵族所建，中国最后一个帝制王朝。",
+ houjin:"努尔哈赤1616年所建，1636年改国号为清。",nanming:"明亡后宗室在南方建立的几个政权，1662年永历帝被杀。",sanfan:"吴三桂、尚之信、耿精忠掀起的反清战争，1673年至1681年。",zheng:"郑成功驱逐荷兰人后在台湾建立的政权，1662年至1683年。",dutch:"1624年起占据台湾南部，1662年被郑成功驱逐。",
+ xiongnu:"秦汉时期北方草原的游牧政权，冒顿单于时统一草原。",sxiongnu:"公元48年匈奴分裂后南下归附汉朝的一支。",xianbei:"东汉后期取代匈奴称雄草原的游牧部族。",rouran:"四至六世纪称雄漠北的游牧汗国，552年被突厥击溃。",
+ tujue:"六世纪中叶兴起的游牧汗国，后分裂为东、西两部。",huihe:"744年取代后突厥的漠北汗国，788年改称回鹘，840年亡。",kirghiz:"840年击溃回鹘汗国的叶尼塞河上游部族。",khitan:"兴起于辽河上游的游牧部族，916年建国。",
+ tubo:"七世纪松赞干布统一青藏高原后建立的王朝，842年瓦解。",tubofrag:"吐蕃王朝瓦解后，青藏高原上互不统属的地方势力。",khoshut:"1642年固始汗入藏后建立的蒙古和硕特部政权。",
+ liuzhao:"洱海周围的六个部落政权。",nanzhao:"738年皮罗阁统一六诏后建立的政权。",dali:"937年段思平所建，1253年为蒙古所灭。",
+ gojoseon:"朝鲜半岛北部与辽东一带的古国，前108年为汉所灭。",koguryo:"兴起于鸭绿江流域的古国，668年为唐与新罗所灭。",baekje:"朝鲜半岛西南部的古国，660年亡。",silla:"朝鲜半岛东南部的古国，七世纪后期统一半岛大部。",
+ bohai:"698年大祚荣所建，有“海东盛国”之称，926年亡于契丹。",goryeo:"918年王建所建，936年统一朝鲜半岛。",joseon:"1392年李成桂所建，明清两代的藩属国。",dayue:"今越南北部的政权，十世纪起自立。",
+ oirat:"蒙古西部诸部，1449年在土木之变中俘获明英宗。",nyuan:"元廷北退草原后的政权，明人后来称之为鞑靼。",dzungar:"卫拉特蒙古准噶尔部建立的汗国，1757年为清所灭。",xiliao:"耶律大石西迁后在中亚重建的辽朝，1218年亡于蒙古。",
+ chagatai:"成吉思汗次子察合台的封国，据有中亚。",moghul:"察合台汗国东部的后继政权，据有天山南北。",jurchen:"明代东北的女真各部，后由努尔哈赤统一。",mohe:"隋唐时期东北的部族，女真人的先民。",
+ yuezhi:"原居河西走廊的游牧部族，被匈奴击败后西迁中亚。",donghu:"匈奴以东的游牧部族，乌桓、鲜卑的先民。",wuhuan:"东胡被匈奴击破后分出的两支部族。",kushan:"月氏后裔在中亚和北印度建立的帝国。",
+ karakhan:"十世纪至十三世纪初据有中亚与喀什噶尔的王朝。",russia:"十七世纪起向西伯利亚和远东扩张；1917年革命后为苏俄，1991年苏联解体后为俄罗斯联邦。",
+ roc:"1912年成立。前期为北洋政府，1928年起为南京国民政府；1949年其政府迁往台北。",prc:"1949年10月1日成立，首都北京。",
+ rocT:"1949年起，中华民国政府实际管辖台湾、澎湖、金门和马祖。中华人民共和国主张台湾是其领土的一部分；1971年联合国大会第2758号决议把中国在联合国的代表权交给中华人民共和国。图上台湾与大陆同色，颜色不反映实际管辖情况。",
+ tibet:"1912年清军撤出后，由达赖喇嘛的噶厦政府实际管治。民国政府始终主张对西藏拥有主权，也没有国家正式承认其独立。1951年《十七条协议》签订后归中华人民共和国管辖。",
+ mongolia:"1911年宣布独立，1915年改为中国宗主权下的自治，1919年自治被取消；1921年在苏俄支持下再度独立，1924年成立蒙古人民共和国。中华民国政府于1946年承认其独立。",
+ manchukuo:"日本1932年在中国东北扶植的政权，以溥仪为元首，实权在关东军手中，国际联盟不予承认；1945年随日本战败而瓦解。",
+ jpemp:"明治维新后对外扩张：1895年取得台湾，1910年吞并朝鲜，1931年侵占中国东北，1937年全面侵华，1945年战败投降。",
+ dispute:"中印边界从未正式划定。图上范围为手绘示意，按实际控制情况标注，不代表对归属的判断。",
+ ussr:"1922年成立，1991年解体。",uk:"英国在1842至1898年间先后割占、租借香港岛、九龙和新界；1997年中国恢复行使主权。",portugal:"葡萄牙人十六世纪中叶起在澳门居留，1887年条约确认其管治；1999年中国恢复行使主权。"
+};
+
+/* ---------------- helpers ---------------- */
+const fmt=y=>y<0?`公元前 ${-y} 年`:`公元 ${y} 年`;
+const fmtS=y=>y<0?`前${-y}`:`${y}`;
+const periodAt=y=>PERIODS.find(p=>y>=p.y0&&y<=p.y1)||PERIODS[PERIODS.length-1];
+const FR=A.frames.map(f=>({y0:f.y0,y1:f.y1,snap:f.snap,texts:f.texts,feats:topojson.feature(f.topo,f.topo.objects.o).features,paths:null,ver:-1}));
+const frameIdx=y=>{for(let i=0;i<FR.length;i++) if(y>=FR[i].y0&&y<=FR[i].y1) return i; return FR.length-1;};
+function resolve(f,y){
+  const st=f.properties.st; let cur=null;
+  for(const s of st){ if(s[0]<=y) cur=s; else break; }
+  if(!cur||cur[1]==null||!POL[cur[1]]) return null;
+  const label=cur[2]!=null?cur[2]:POL[cur[1]][0];
+  return {key:cur[1],label,name:label||POL[cur[1]][0],slot:POL[cur[1]][1],loose:!!(f.properties.loose||cur[3])};
+}
+function polities(y){
+  const fr=FR[frameIdx(y)], seen=new Map();
+  fr.feats.forEach(f=>{const r=resolve(f,y); if(!r) return; const a=f.properties.lp?f.properties.lp[2]:0;
+    const o=seen.get(r.name); if(!o) seen.set(r.name,{...r,area:a}); else {o.area+=a; if(!r.loose) o.loose=false;}});
+  return [...seen.values()].sort((a,b)=>(a.slot===0?0:1)-(b.slot===0?0:1)||(a.slot>5?1:0)-(b.slot>5?1:0)||b.area-a.area);
+}
+function describe(y){
+  const p=periodAt(y), ps=polities(y).map(o=>o.name+(o.loose?"（斜纹：非直接管辖）":"")).join("、");
+  const ev=EVENTS.filter(e=>Math.abs(e[0]-y)<=40).sort((a,b)=>Math.abs(a[0]-y)-Math.abs(b[0]-y)).slice(0,12).sort((a,b)=>a[0]-b[0]).map(e=>`${fmtS(e[0])}年 ${e[1]}`).join("；");
+  return `年份：${fmt(y)}。时期：${p.n}（${p.span}）。都城：${p.cap}。图上政权：${ps}。前后四十年的大事：${ev||"无记录"}。`;
+}
+
+/* ---------------- state ---------------- */
+const S={year:669,speed:60,playing:false,sel:null,hover:null};
+let T=d3.zoomIdentity, W=0,H=0,dpr=1, proj=null, geoPath=null, geoVer=0, P={}, C={}, hatch=[];
+let fade=null, shownFrame=-1, shownYear=669, drawQueued=false;
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const mapEl=$("#map"), cv=$("#cv"), ctx=cv.getContext("2d"), labelsEl=$("#labels"), tip=$("#tip");
+
+/* ---------------- theme colours ---------------- */
+function readColors(){
+  const cs=getComputedStyle(document.documentElement), g=n=>cs.getPropertyValue(n).trim();
+  C={sea:g("--sea"),land:g("--land"),coast:g("--coast"),river:g("--river"),border:g("--border"),ink:g("--ink"),p:[]};
+  for(let i=0;i<9;i++) C.p.push(g("--p"+i));
+  hatch=C.p.map(col=>{const c=document.createElement("canvas"); c.width=c.height=6; const x=c.getContext("2d");
+    x.strokeStyle=col; x.lineWidth=1.3; x.beginPath(); x.moveTo(-1,7); x.lineTo(7,-1); x.moveTo(-4,4); x.lineTo(4,-4); x.moveTo(2,10); x.lineTo(10,2); x.stroke();
+    return ctx.createPattern(c,"repeat");});
+}
+new MutationObserver(()=>{readColors();queueDraw();}).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{readColors();queueDraw();});
+
+/* ---------------- geometry ---------------- */
+const LAND=topojson.feature(A.land,A.land.objects.o), LAKES=topojson.feature(A.lakes,A.lakes.objects.o);
+const RIV=topojson.feature(A.rivers,A.rivers.objects.o);
+const RIV1={type:"FeatureCollection",features:RIV.features.filter(f=>f.properties.w===2)};
+const RIV2={type:"FeatureCollection",features:RIV.features.filter(f=>f.properties.w!==2)};
+function fit(){
+  const r=mapEl.getBoundingClientRect(); W=Math.max(200,r.width); H=Math.max(200,r.height); dpr=Math.min(2.5,window.devicePixelRatio||1);
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  proj=d3.geoConicConformal().parallels([24,46]).rotate([-104,0]);
+  const padT=W>620?10:54, padB=W>620?16:40;
+  proj.fitExtent([[8,padT],[W-8,H-padB]],{type:"MultiPoint",coordinates:[[78,19.5],[132,19.5],[76,52],[134,52],[104,17.5],[104,53.5],[74,38],[136,38]]});
+  geoPath=d3.geoPath(proj); geoVer++;
+  P={land:new Path2D(geoPath(LAND)),lakes:new Path2D(geoPath(LAKES)),r1:new Path2D(geoPath(RIV1)),r2:new Path2D(geoPath(RIV2))};
+  zoom.extent([[0,0],[W,H]]).translateExtent([[-W*0.15,-H*0.15],[W*1.15,H*1.15]]);
+}
+function framePaths(fr){
+  if(fr.ver!==geoVer){ fr.paths=fr.feats.map(f=>new Path2D(geoPath(f)||"")); fr.ver=geoVer; }
+  return fr.paths;
+}
+
+/* ---------------- drawing ---------------- */
+function setCTM(){ctx.setTransform(dpr*T.k,0,0,dpr*T.k,dpr*T.x,dpr*T.y);}
+function drawFrame(fi,y,alpha){
+  const fr=FR[fi], paths=framePaths(fr), k=T.k;
+  for(let i=0;i<fr.feats.length;i++){
+    const r=resolve(fr.feats[i],y); if(!r) continue; const pth=paths[i];
+    if(r.loose){ ctx.globalAlpha=alpha*0.2; ctx.fillStyle=C.p[r.slot]; ctx.fill(pth,"evenodd"); ctx.globalAlpha=alpha*0.9; ctx.fillStyle=hatch[r.slot]; ctx.fill(pth,"evenodd"); }
+    else { ctx.globalAlpha=alpha*(r.slot>5?0.7:0.84); ctx.fillStyle=C.p[r.slot]; ctx.fill(pth,"evenodd"); }
+    if(r.label===""&&!r.loose){ ctx.strokeStyle=C.p[r.slot]; ctx.lineWidth=1/k; ctx.stroke(pth); }   // seal the seam with its neighbour
+    if(r.label!==""){ ctx.globalAlpha=alpha*0.5; ctx.strokeStyle=C.border; ctx.lineWidth=0.8/k; if(r.loose) ctx.setLineDash([4/k,3/k]); ctx.stroke(pth); ctx.setLineDash([]); }
+  }
+  const hl=S.hover||S.sel;
+  if(hl&&alpha>0.5) for(let i=0;i<fr.feats.length;i++){
+    const r=resolve(fr.feats[i],y); if(!r) continue;
+    if(r.name===S.sel||r.name===S.hover){ ctx.globalAlpha=alpha; ctx.strokeStyle=C.ink; ctx.lineWidth=(r.name===S.sel?2.4:1.6)/k; ctx.lineJoin="round"; ctx.stroke(paths[i]); }
+  }
+  ctx.globalAlpha=1;
+}
+function draw(){
+  drawQueued=false;
+  const fi=frameIdx(S.year);
+  if(fi!==shownFrame){ if(shownFrame>=0&&!reduce) fade={from:shownFrame,year:clamp(shownYear,FR[shownFrame].y0,FR[shownFrame].y1),t0:performance.now()}; shownFrame=fi; }
+  shownYear=S.year;
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.globalAlpha=1; ctx.fillStyle=C.sea; ctx.fillRect(0,0,W,H);
+  setCTM(); ctx.fillStyle=C.land; ctx.fill(P.land,"evenodd");
+  let t=1;
+  if(fade){ t=clamp((performance.now()-fade.t0)/320,0,1); if(t<1) drawFrame(fade.from,fade.year,1-t); else fade=null; }
+  drawFrame(fi,S.year,t);
+  ctx.fillStyle=C.sea; ctx.fill(P.lakes,"evenodd");
+  ctx.strokeStyle=C.river; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.globalAlpha=0.75; ctx.lineWidth=0.7/Math.sqrt(T.k); ctx.stroke(P.r2);
+  ctx.globalAlpha=1; ctx.lineWidth=1.5/Math.sqrt(T.k); ctx.stroke(P.r1);
+  ctx.strokeStyle=C.coast; ctx.lineWidth=0.7/T.k; ctx.stroke(P.land);
+  layoutLabels();
+  if(fade) queueDraw();
+}
+function queueDraw(){ if(!drawQueued){drawQueued=true; requestAnimationFrame(draw);} }
+
+/* ---------------- labels ---------------- */
+let labelSig="";
+const tw=(s,size,ls)=>{let n=0; for(const ch of s) n+=ch.charCodeAt(0)>255?1:0.56; return n*size*(1+ls);};
+function layoutLabels(){
+  const fr=FR[frameIdx(S.year)], y=S.year, k=T.k, boxes=[], out=[], mb=mapEl.getBoundingClientRect();
+  mapEl.querySelectorAll(".mast,.zoom,.legend").forEach(e=>{const r=e.getBoundingClientRect(); boxes.push([r.left-mb.left-4,r.top-mb.top-4,r.right-mb.left+4,r.bottom-mb.top+4]);});
+  const pt=(lon,lat)=>{const p=proj([lon,lat]); return [p[0]*k+T.x,p[1]*k+T.y];};
+  const free=b=>b[0]>=4&&b[1]>=4&&b[2]<=W-4&&b[3]<=H-4&&!boxes.some(o=>b[0]<o[2]&&b[2]>o[0]&&b[1]<o[3]&&b[3]>o[1]);
+  const best=new Map();
+  fr.feats.forEach(f=>{const r=resolve(f,y), lp=f.properties.lp; if(!r||!r.label||!lp) return; const o=best.get(r.label); if(!o||lp[2]>o.lp[2]) best.set(r.label,{r,lp});});
+  const top=new Map(); fr.feats.forEach(f=>{const r=resolve(f,y), lp=f.properties.lp; if(r&&lp&&!r.loose&&lp[2]>(top.get(r.key)||0)) top.set(r.key,lp[2]);});
+  const items=[...best.values()].sort((a,b)=>(a.r.slot===0?0:1)-(b.r.slot===0?0:1)||b.lp[2]-a.lp[2]);
+  const zf=Math.pow(k,0.4);
+  const place=(o)=>{
+    const {r,lp}=o, major=r.slot<=5&&!r.loose&&(lp[2]>=(top.get(r.key)||0)||r.label===POL[r.key][0]);
+    const size=major?clamp(11+Math.sqrt(lp[2])*1.05,13,27)*zf:clamp(10.5+Math.sqrt(lp[2])*0.35,11.5,14)*Math.min(zf,1.4);
+    const [x,yy]=pt(lp[0],lp[1]), w=tw(r.label,size,major?0.12:0)+6, h=size*1.25;
+    for(const dy of [0,-h*0.9,h*0.9]){ const b=[x-w/2,yy+dy-h/2,x+w/2,yy+dy+h/2];
+      if(free(b)){ boxes.push(b); out.push(`<span class="lb ${major?"mj":r.loose?"lz":"mn"}${r.slot===0&&major?" core":""}" style="left:${x.toFixed(1)}px;top:${(yy+dy).toFixed(1)}px;font-size:${size.toFixed(1)}px">${esc(r.label)}</span>`); return; } }
+  };
+  const bigs=items.filter(o=>o.lp[2]>=25), smalls=items.filter(o=>o.lp[2]<25);
+  bigs.forEach(place);
+  CAPS.forEach(c=>{ if(y<c[3]||y>c[4]) return; const [x,yy]=pt(c[1],c[2]); if(x<6||yy<6||x>W-6||yy>H-6) return;
+    const w=tw(c[0],11.5,0)+4; let cls="";
+    for(const [cl,b] of [["r",[x+7,yy-8,x+9+w,yy+8]],["l",[x-9-w,yy-8,x-7,yy+8]],["d",[x-w/2,yy+7,x+w/2,yy+23]],["u",[x-w/2,yy-23,x+w/2,yy-7]]]) if(free(b)){cls=cl; boxes.push(b); break;}
+    boxes.push([x-6,yy-6,x+6,yy+6]);
+    out.push(`<span class="cap" style="left:${x.toFixed(1)}px;top:${yy.toFixed(1)}px"><i></i>${cls?`<b class="${cls}">${esc(c[0])}</b>`:""}</span>`); });
+  smalls.forEach(place);
+  fr.texts.forEach(t=>{const [x,yy]=pt(t[1],t[2]), size=13*Math.min(zf,1.5), b=[x-size*0.8,yy-size*0.8,x+size*0.8,yy+size*0.8];
+    if(free(b)){boxes.push(b); out.push(`<span class="lb tx" style="left:${x.toFixed(1)}px;top:${yy.toFixed(1)}px;font-size:${size.toFixed(1)}px">${esc(t[0])}</span>`);} });
+  RIVERS.forEach(t=>{const [x,yy]=pt(t[1],t[2]), w=tw(t[0],10.5,0.3)+4, b=[x-w/2,yy-8,x+w/2,yy+8];
+    if(free(b)){boxes.push(b); out.push(`<span class="lb rv" style="left:${x.toFixed(1)}px;top:${yy.toFixed(1)}px;font-size:10.5px">${esc(t[0])}</span>`);} });
+  const html=out.join("");
+  if(html!==labelSig){ labelSig=html; labelsEl.innerHTML=html; }
+}
+
+/* ---------------- zoom & pointer ---------------- */
+const zoom=d3.zoom().scaleExtent([1,8])
+  .filter(ev=>{ if(ev.type.startsWith("touch")) return ev.touches.length>1||T.k>1.01; return (!ev.ctrlKey||ev.type==="wheel")&&!ev.button; })
+  .on("zoom",ev=>{T=ev.transform; mapEl.classList.toggle("zoomed",T.k>1.01); tip.hidden=true; queueDraw();});
+const mapSel=d3.select(mapEl).call(zoom).on("dblclick.zoom",null);
+$("#zin").onclick=()=>mapSel.transition().duration(reduce?0:220).call(zoom.scaleBy,1.7);
+$("#zout").onclick=()=>mapSel.transition().duration(reduce?0:220).call(zoom.scaleBy,1/1.7);
+$("#zreset").onclick=()=>mapSel.transition().duration(reduce?0:260).call(zoom.transform,d3.zoomIdentity);
+function hit(mx,my){
+  const fr=FR[frameIdx(S.year)], paths=framePaths(fr); setCTM();
+  for(let i=fr.feats.length-1;i>=0;i--){ const r=resolve(fr.feats[i],S.year); if(!r) continue; if(ctx.isPointInPath(paths[i],mx*dpr,my*dpr,"evenodd")) return r; }
+  return null;
+}
+mapEl.addEventListener("pointermove",ev=>{
+  if(ev.pointerType==="touch"||ev.buttons) return; if(ev.target.closest(".mast,.zoom,.legend")){setHover(null);tip.hidden=true;return;}
+  const b=mapEl.getBoundingClientRect(), x=ev.clientX-b.left, y=ev.clientY-b.top, r=hit(x,y);
+  setHover(r?r.name:null); mapEl.classList.toggle("hit",!!r);
+  if(r){ tip.textContent=r.name+(r.loose&&S.year<1912?" · 松散管辖":""); tip.style.left=clamp(x,60,W-60)+"px"; tip.style.top=Math.max(34,y)+"px"; tip.hidden=false; } else tip.hidden=true;
+});
+mapEl.addEventListener("pointerleave",()=>{setHover(null);tip.hidden=true;});
+mapEl.addEventListener("click",ev=>{
+  if(ev.target.closest(".mast,.zoom,.legend")) return;
+  const b=mapEl.getBoundingClientRect(), r=hit(ev.clientX-b.left,ev.clientY-b.top);
+  select(r?r.name:null);
+});
+function setHover(n){ if(S.hover===n) return; S.hover=n; document.querySelectorAll(".pol").forEach(e=>e.classList.toggle("hv",e.dataset.n===n)); queueDraw(); }
+function select(n){ S.sel=S.sel===n?null:n; polSig=""; renderPolities(); queueDraw(); }
+
+/* ---------------- timeline ---------------- */
+const KY=[Y0,-221,1840,Y1], KX=[0,0.21,0.72,1];   // piecewise-linear: antiquity compressed, modern era expanded
+const y2x=y=>{ for(let i=1;i<KY.length;i++) if(y<=KY[i]||i===KY.length-1) return KX[i-1]+(y-KY[i-1])/(KY[i]-KY[i-1])*(KX[i]-KX[i-1]); };
+const x2y=x=>{ x=clamp(x,0,1); let y=Y1; for(let i=1;i<KX.length;i++) if(x<=KX[i]){ y=KY[i-1]+(x-KX[i-1])/(KX[i]-KX[i-1])*(KY[i]-KY[i-1]); break; } y=Math.round(y); return y===0?1:clamp(y,Y0,Y1); };
+const track=$("#track"), needle=$("#needle"), flag=$("#flag"), band=$("#band");
+band.innerHTML=PERIODS.map((p,i)=>{const a=y2x(p.y0), b=i<PERIODS.length-1?y2x(PERIODS[i+1].y0):1;
+  return `<div class="seg" data-i="${i}" style="left:${(a*100).toFixed(3)}%;width:${((b-a)*100).toFixed(3)}%" title="${esc(p.n)} ${esc(p.span)}"><span>${esc(p.b||(p.seal.length>2?p.n:p.seal))}</span></div>`;}).join("");
+$("#evts").innerHTML=EVENTS.map((e,i)=>`<i data-i="${i}" style="left:${(y2x(e[0])*100).toFixed(3)}%"></i>`).join("");
+$("#axis").innerHTML=[-2070,-1046,-221,1,220,420,618,907,1127,1368,1644,1840,1912,1949,2026].map(y=>`<span style="left:${(y2x(y)*100).toFixed(3)}%">${fmtS(y)}</span>`).join("");
+const segs=[...band.children], evMarks=[...$("#evts").children];
+function tighten(){
+  segs.forEach(s=>s.classList.toggle("tight",s.firstChild.offsetWidth>s.clientWidth-6));
+  const ax=[...$("#axis").children]; ax.forEach(s=>s.style.visibility=""); const rc=ax.map(s=>s.getBoundingClientRect()), end=rc[rc.length-1]; let lastR=-1e9;
+  ax.forEach((s,i)=>{ if(i===ax.length-1) return; const r=rc[i]; if(r.left<lastR+8||r.right>end.left-8) s.style.visibility="hidden"; else lastR=r.right; });
+}
+function yearFromEvent(ev){const b=track.getBoundingClientRect(); return x2y((ev.clientX-b.left)/b.width);}
+let dragging=false;
+track.addEventListener("pointerdown",ev=>{ if(ev.button) return; dragging=true; track.setPointerCapture(ev.pointerId); stopPlay(); setYear(yearFromEvent(ev)); ev.preventDefault(); track.focus({preventScroll:true}); });
+track.addEventListener("pointermove",ev=>{ if(dragging) setYear(yearFromEvent(ev)); });
+const endDrag=()=>{dragging=false;};
+track.addEventListener("pointerup",endDrag); track.addEventListener("pointercancel",endDrag);
+track.addEventListener("keydown",ev=>{
+  const step=ev.shiftKey?10:1; let y=S.year;
+  if(ev.key==="ArrowRight"||ev.key==="ArrowUp") y+=step; else if(ev.key==="ArrowLeft"||ev.key==="ArrowDown") y-=step;
+  else if(ev.key==="PageUp") y+=50; else if(ev.key==="PageDown") y-=50; else if(ev.key==="Home") y=Y0; else if(ev.key==="End") y=Y1;
+  else if(ev.key===" "){ togglePlay(); ev.preventDefault(); return; } else return;
+  ev.preventDefault(); stopPlay(); if(y===0) y=y>S.year?1:-1; setYear(y);
+});
+function stepYear(y,n){ let v=y+n; if(y<0&&v>=0) v+=1; return v; }
+let last=0, acc=0;
+function tick(ts){ if(!S.playing) return; const dt=Math.min(0.1,(ts-last)/1000); last=ts; acc+=dt*S.speed;
+  if(acc>=1){ const n=Math.floor(acc); acc-=n; const y=stepYear(S.year,n); if(y>=Y1){ setYear(Y1); stopPlay(); return; } setYear(y); }
+  requestAnimationFrame(tick); }
+function startPlay(){ if(S.playing) return; if(S.year>=Y1) setYear(Y0); S.playing=true; last=performance.now(); acc=0; syncPlay(); requestAnimationFrame(tick); }
+function stopPlay(){ if(!S.playing) return; S.playing=false; syncPlay(); }
+function togglePlay(){ S.playing?stopPlay():startPlay(); }
+function syncPlay(){ $("#play").setAttribute("aria-label",S.playing?"暂停":"播放"); $("#playico").innerHTML=S.playing?'<path d="M3 2h3v10H3zM8 2h3v10H8z"/>':'<path d="M3 1.5v11l9-5.5z"/>'; }
+$("#play").onclick=togglePlay;
+$("#prev").onclick=()=>{stopPlay(); const i=PERIODS.indexOf(periodAt(S.year)); setYear(S.year>PERIODS[i].y0||i===0?PERIODS[i].y0:PERIODS[i-1].y0);};
+$("#next").onclick=()=>{stopPlay(); const i=PERIODS.indexOf(periodAt(S.year)); setYear(i<PERIODS.length-1?PERIODS[i+1].y0:Y1);};
+document.querySelectorAll(".speed button").forEach(b=>b.onclick=()=>setSpeed(+b.dataset.s));
+function setSpeed(s){ S.speed=s; document.querySelectorAll(".speed button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.s===s))); }
+
+/* ---------------- panel ---------------- */
+let perShown=null, polSig="", evNow=-2;
+function setYear(y){ y=clamp(Math.round(y),Y0,Y1); if(y===0) y=1; if(y===S.year&&perShown) return; S.year=y; render(); }
+function render(){
+  const y=S.year, p=periodAt(y), x=y2x(y);
+  needle.style.left=(x*100)+"%";
+  flag.innerHTML=`${fmt(y)}<b>${esc(p.n)}</b>`;
+  const tw_=track.clientWidth, fw=flag.offsetWidth; flag.style.left=clamp(x*tw_-fw/2,0,Math.max(0,tw_-fw))+"px";
+  track.setAttribute("aria-valuenow",y); track.setAttribute("aria-valuetext",`${fmt(y)}，${p.n}`);
+  $("#era").textContent=y<0?"公元前":"公元";
+  $("#yr").innerHTML=`${Math.abs(y)}<small>年</small>`;
+  if(p!==perShown){
+    perShown=p;
+    const seal=$("#seal"); seal.dataset.n=p.seal.length; seal.innerHTML=[...p.seal].map(c=>`<span>${c}</span>`).join("");
+    $("#pname").innerHTML=`${esc(p.n)}<span>${esc(p.span)}</span>`; $("#capital").textContent=p.cap; $("#blurb").textContent=p.d;
+    segs.forEach((s,i)=>s.classList.toggle("on",PERIODS[i]===p));
+    $("#tourbtn").textContent=`生成「${p.n}」导览`; evNow=-2;
+    $("#evl").innerHTML=EVENTS.map((e,i)=>e[0]>=p.y0&&e[0]<=p.y1?`<li data-i="${i}"><button type="button"><time>${fmtS(e[0])}</time><span>${esc(e[1])}</span></button></li>`:"").join("")||'<li class="msg">这一时期暂无条目。</li>';
+  }
+  $("#snap").textContent="疆域快照："+FR[frameIdx(y)].snap;
+  $("#q").placeholder=`就${fmt(y).replace(/ /g,"")}的地图提问…`;
+  let now=-1; for(let i=0;i<EVENTS.length;i++){ if(EVENTS[i][0]<=y) now=i; else break; }
+  if(now!==evNow){ evNow=now;
+    evMarks.forEach((m,i)=>{m.classList.toggle("past",i<now); m.classList.toggle("now",i===now);});
+    document.querySelectorAll("#evl li[data-i]").forEach(li=>{const i=+li.dataset.i; li.classList.toggle("past",i<now); li.classList.toggle("now",i===now);});
+  }
+  renderPolities(); queueDraw();
+}
+function renderPolities(){
+  const ps=polities(S.year), sig=ps.map(o=>o.name+o.slot+o.loose).join("|")+"#"+S.sel;
+  if(sig===polSig) return; polSig=sig;
+  if(S.sel&&!ps.some(o=>o.name===S.sel)) S.sel=null;
+  $("#pols").innerHTML=ps.map(o=>`<button type="button" class="pol" data-n="${esc(o.name)}" aria-pressed="${o.name===S.sel}"><i class="sw${o.loose?" hx":""}" style="--c:var(--p${o.slot})"></i>${esc(o.name)}</button>`).join("");
+  const note=$("#note"), o=ps.find(o=>o.name===S.sel);
+  if(o){ const base=NOTES[o.key]; note.hidden=false;
+    note.innerHTML=`<b>${esc(o.name)}</b>${o.loose?(S.year<1912?"图上以斜纹表示：设都护府、羁縻府州或册封，并非直接设郡县管辖。":"图上以斜纹表示：占领区、宗主权或争议地区，并非稳定的直接管辖。"):""}${base&&(!o.loose||POL[o.key][0]===o.name||o.key==="dispute")?esc(base):(!o.loose&&!base?"图上所示范围为示意。":"")}<br><button type="button" id="askpol">请 Claude 介绍此时的「${esc(o.name)}」</button>`;
+  } else note.hidden=true;
+}
+$("#pols").addEventListener("click",ev=>{const b=ev.target.closest(".pol"); if(b) select(b.dataset.n);});
+$("#pols").addEventListener("pointerover",ev=>{const b=ev.target.closest(".pol"); setHover(b?b.dataset.n:null);});
+$("#pols").addEventListener("pointerleave",()=>setHover(null));
+$("#note").addEventListener("click",ev=>{ if(ev.target.id==="askpol"&&S.sel) ask(`请介绍${fmt(S.year).replace(/ /g,"")}前后的「${S.sel}」：它是怎样的政权，和周边的关系如何？`); });
+$("#evl").addEventListener("click",ev=>{const li=ev.target.closest("li[data-i]"); if(li){stopPlay(); setYear(EVENTS[+li.dataset.i][0]);}});
+
+/* ---------------- Claude: ask, tour, read aloud ---------------- */
+const hasRuntime=!!(window.claude&&typeof window.claude.use==="function");
+const sampleP=hasRuntime?window.claude.use("sample").catch(()=>null):Promise.resolve(null);
+let tts=null, ttsLang, canTools=false, ctl=null, turns=[], lastAnswer="", tour=null, speaking=null;
+const aiMsg=(t)=>{const m=$("#aimsg"); m.hidden=!t; m.textContent=t||"";};
+function noAI(){ $("#aibody").hidden=true; $("#aimode").textContent=""; aiMsg("在 Claude 应用中打开本页并允许使用后，可以就任意年份提问、生成导览。"); }
+sampleP.then(async s=>{ if(!s){noAI();return;} const lim=await s.limits().catch(()=>null); canTools=!!(lim&&lim.tools); $("#aimode").textContent=canTools?"可代你拖动时间轴":""; });
+if(hasRuntime) window.claude.use("tts").then(async t=>{ if(!t) return; tts=t;
+  const langs=t.languages?await t.languages().catch(()=>undefined):undefined; ttsLang=langs&&langs.includes("zh")?"zh":undefined;
+  document.body.classList.add("has-tts");
+  t.onState(({state})=>{ if(state==="idle"){ speaking=null; syncSpeak(); } });
+  t.onLine(({id})=>{ if(speaking==="tour"&&tour&&id&&id[0]==="s") gotoStop(+id.slice(1)); });
+}).catch(()=>{});
+function syncSpeak(){ [["readbtn","blurb","朗读这一段"],["readans","ans","朗读回答"],["readtour","tour","逐站朗读，地图同步"]].forEach(([id,who,txt])=>{const b=$("#"+id); b.classList.toggle("on",speaking===who); b.querySelector("span").textContent=speaking===who?"停止朗读":txt;}); }
+async function speak(who,lines){
+  if(!tts) return;
+  if(speaking===who){ tts.stop().catch(()=>{}); return; }
+  speaking=who; syncSpeak();
+  try{ await tts.speak(lines,ttsLang?{language:ttsLang}:undefined); }
+  catch(e){ if(e&&(e.code==="not_granted"||e.code==="unavailable")) document.body.classList.remove("has-tts"); else if(e&&e.code==="rate_limited") aiMsg("朗读次数已达上限，请稍后再试。"); }
+  finally{ if(speaking===who){ speaking=null; syncSpeak(); } }
+}
+$("#readbtn").onclick=()=>{const p=periodAt(S.year); speak("blurb",[{text:`${p.n}，${p.say||p.span.replace(/—/g,"至").replace(/前/g,"公元前")+"年。"}`},{text:p.d}]);};
+$("#readans").onclick=()=>{ if(lastAnswer) speak("ans",lastAnswer.slice(0,1900).split(/\n+/).filter(s=>s.trim()).map(text=>({text}))); };
+$("#readtour").onclick=()=>{ if(tour) speak("tour",tour.stops.map((s,i)=>({id:"s"+i,text:`${fmt(s.year).replace(/ /g,"")}，${s.title}。${s.text}`.slice(0,1900)}))); };
+
+const RULES=()=>"你是嵌在《中国历代疆域图》这张交互地图里的历史讲解员，读者正拖动时间轴看图。规则：一、用简体中文直接回答，一般不超过180字；二、只写纯文本，不用Markdown符号、标题或列表符号；三、年代写公元纪年；四、史实有争议或你拿不准时直说，不要编造；五、地图只是疆域示意，如果读者指出图与史实不符，照实说明；六、遇到主权或边界有争议的问题，客观说明各方立场和实际管辖情况，不替读者下结论。"+(canTools?"七、如果把地图切到某一年有助于说明，可以调用 goto_year（最多两次），再接着讲。":"");
+const gotoTool={name:"goto_year",description:"把地图时间轴移到指定年份，读者会立刻看到那一年的疆域。返回那一年的时期、都城、图上政权和前后大事。年份范围 -2070 到 2026，公元前用负数（如 -221）。",
+  inputSchema:{type:"object",properties:{year:{type:"integer",description:"公元年份；公元前为负数"}},required:["year"]},
+  execute(input){ let y=Math.round(Number(input&&input.year)); if(!Number.isFinite(y)) throw new Error("year 必须是整数"); y=clamp(y,Y0,Y1); if(y===0) y=1; stopPlay(); setYear(y); return describe(y); }};
+function busy(b){ $("#askbtn").disabled=b; document.querySelectorAll("#chips .chip").forEach(c=>c.disabled=b); $("#stopbtn").hidden=!b; }
+function fail(e,el){
+  const code=e&&e.code;
+  if(code==="cancelled"){ if(el&&!el.textContent.trim()) el.textContent=""; return; }
+  if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(code)){ noAI(); return; }
+  if(code==="tools_unavailable"){ canTools=false; $("#aimode").textContent=""; aiMsg("这个窗口里 Claude 不能代为拖动时间轴，请再问一次。"); return; }
+  if(code==="refused"&&el) el.textContent="";
+  aiMsg(code==="rate_limited"?"提问太频繁，或已达到用量上限，请稍后再试。":code==="session_expired"?"登录已过期，请重新登录 Claude 后再试。":code==="refused"?"Claude 没有回答这个问题，换个问法试试。":code==="invalid_json"?"导览没有生成成功，请再试一次。":"连接中断了，请再试一次。");
+}
+async function ask(q){
+  q=String(q||"").trim(); if(!q) return;
+  const s=await sampleP; if(!s){noAI();return;}
+  stopPlay(); if(ctl) ctl.abort(); ctl=new AbortController(); const my=ctl; aiMsg("");
+  $("#tour").hidden=true; $("#qa").hidden=false; $("#ai").scrollIntoView({block:"nearest"}); $("#qtext").textContent=q; const a=$("#atext"); a.textContent="Claude 正在思考…"; $("#readans").hidden=true; busy(true);
+  const msg=`【地图当前状态】\n${describe(S.year)}\n\n【提问】\n${q}`;
+  const opts={cache:false,signal:my.signal,onText:({text})=>{a.textContent=text;}}; if(canTools) opts.tools=[gotoTool];
+  try{
+    const res=await s([{role:"user",content:RULES()},...turns.slice(-4),{role:"user",content:msg}],opts);
+    a.textContent=res.text; lastAnswer=res.text; turns.push({role:"user",content:msg},{role:"assistant",content:res.text}); $("#readans").hidden=false;
+    if(res.truncated) aiMsg("回答被截断了，可以把问题问得更具体一些。");
+  }catch(e){ if(e&&e.text) a.textContent=e.text; else if(a.textContent==="Claude 正在思考…") a.textContent=""; fail(e,a); if(!a.textContent) $("#qa").hidden=true; }
+  finally{ if(ctl===my){ busy(false); ctl=null; } }
+}
+async function makeTour(){
+  const s=await sampleP; if(!s){noAI();return;}
+  stopPlay(); if(ctl) ctl.abort(); ctl=new AbortController(); const my=ctl; aiMsg(""); const p=periodAt(S.year);
+  $("#qa").hidden=true; $("#tour").hidden=true; busy(true); aiMsg(`Claude 正在为「${p.n}」挑选关键年份，通常需要十几秒…`);
+  const evs=EVENTS.filter(e=>e[0]>=p.y0&&e[0]<=p.y1).map(e=>`${e[0]}：${e[1]}`).join("；");
+  const prompt=`请为中国历史时期「${p.n}」（${p.span}）设计一条地图导览，共4站，按时间先后排列。读者会看到一张随年份变化的疆域示意图，所以请挑疆域或政治格局发生明显变化的年份。只回复一个JSON数组，不要任何其他文字。每个元素形如 {"year": 755, "title": "安史之乱", "text": "讲解"}。year 必须是 ${p.y0} 到 ${p.y1} 之间的整数（公元前用负数）；title 不超过10个字；text 为两三句、80字以内的口语化讲解，适合朗读，不用Markdown，史实拿不准的不要写。可参考的大事（年份：事件）：${evs}`;
+  try{
+    const data=await s.json(prompt,{signal:my.signal});
+    const stops=(Array.isArray(data)?data:[]).map(o=>({year:Math.round(Number(o&&o.year)),title:String(o&&o.title||"").slice(0,24),text:String(o&&o.text||"").slice(0,300)}))
+      .filter(o=>Number.isFinite(o.year)&&o.year!==0&&o.title&&o.text).map(o=>({...o,year:clamp(o.year,p.y0,p.y1)})).sort((a,b)=>a.year-b.year).slice(0,6);
+    if(!stops.length) throw {code:"invalid_json"};
+    tour={pid:p.id,stops,at:-1}; aiMsg("");
+    $("#stops").innerHTML=stops.map((o,i)=>`<li data-i="${i}"><button type="button"><b>${esc(o.title)}</b><time>${fmt(o.year)}</time><p>${esc(o.text)}</p></button></li>`).join("");
+    $("#tour").hidden=false; gotoStop(0);
+  }catch(e){ aiMsg(""); fail(e,null); }
+  finally{ if(ctl===my){ busy(false); ctl=null; } }
+}
+function gotoStop(i){ if(!tour||!tour.stops[i]) return; tour.at=i; stopPlay(); setYear(tour.stops[i].year);
+  document.querySelectorAll("#stops li").forEach((li,j)=>li.classList.toggle("on",j===i)); }
+$("#stops").addEventListener("click",ev=>{const li=ev.target.closest("li[data-i]"); if(li) gotoStop(+li.dataset.i);});
+$("#tourbtn").onclick=makeTour;
+$("#chips").addEventListener("click",ev=>{const c=ev.target.closest(".chip[data-q]"); if(c) ask(c.dataset.q);});
+$("#askf").addEventListener("submit",ev=>{ev.preventDefault(); const i=$("#q"); const v=i.value; i.value=""; ask(v);});
+$("#stopbtn").onclick=()=>{ if(ctl) ctl.abort(); };
+
+/* ---------------- boot ---------------- */
+function start(saved){
+  if(saved&&Number.isFinite(saved.year)) S.year=clamp(Math.round(saved.year),Y0,Y1)||1;
+  if(saved&&[20,60,160].includes(saved.speed)) setSpeed(saved.speed);
+  readColors(); fit(); shownYear=S.year; render(); tighten();
+  new ResizeObserver(()=>{ const k=T.k; fit(); if(k!==1) mapSel.call(zoom.transform,d3.zoomIdentity); labelSig=""; perShown&&render(); tighten(); queueDraw(); }).observe(mapEl);
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{tighten(); render();});
+}
+const hot=window.claude&&window.claude.hot;
+if(hot&&hot.snapshot) hot.snapshot(()=>({year:S.year,speed:S.speed}));
+if(hot&&hot.ready) hot.ready(start); else start((hot&&hot.data)||{});
+})();
+</script>
+</body>
+</html>
