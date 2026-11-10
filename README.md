@@ -4,7 +4,9 @@
 
 ![2026 年的地图](docs/screenshot-2026.png)
 
-在线版本（Claude Artifact）：https://claude.ai/artifact/LxgZT3FPzzsHUG9VKCmE8m
+**在线试玩：https://xingzengji.github.io/china-history-map/**
+
+也可以在 Claude 中打开（带 Claude 提问、导览和朗读功能）：https://claude.ai/artifact/LxgZT3FPzzsHUG9VKCmE8m
 
 ## 功能
 
@@ -17,7 +19,7 @@
 
 ## 本地查看
 
-`site/` 是完整的静态网页，不需要构建：
+`site/` 是完整的静态网页，不需要构建。推送到 `main` 后，`.github/workflows/pages.yml` 会自动把它发布到 GitHub Pages。本地预览：
 
 ```bash
 npx http-server site -p 8080   # 或直接用浏览器打开 site/index.html
