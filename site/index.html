@@ -624,11 +624,15 @@ track.addEventListener("keydown",ev=>{
   ev.preventDefault(); stopPlay(); if(y===0) y=y>S.year?1:-1; setYear(y);
 });
 function stepYear(y,n){ let v=y+n; if(y<0&&v>=0) v+=1; return v; }
-let last=0, acc=0;
-function tick(ts){ if(!S.playing) return; const dt=Math.min(0.1,(ts-last)/1000); last=ts; acc+=dt*S.speed;
-  if(acc>=1){ const n=Math.floor(acc); acc-=n; const y=stepYear(S.year,n); if(y>=Y1){ setYear(Y1); stopPlay(); return; } setYear(y); }
+// Playback moves the needle at a constant on-screen speed (the axis is not linear in years).
+// S.speed is the average years per second, so a full run lasts (Y1-Y0)/S.speed seconds whatever the scale.
+let last=0, pos=0;
+function tick(ts){ if(!S.playing) return; const dt=Math.min(0.1,(ts-last)/1000); last=ts;
+  pos+=dt*S.speed/(Y1-Y0);
+  if(pos>=1){ setYear(Y1); stopPlay(); return; }
+  const y=x2y(pos); if(y!==S.year) setYear(y);
   requestAnimationFrame(tick); }
-function startPlay(){ if(S.playing) return; if(S.year>=Y1) setYear(Y0); S.playing=true; last=performance.now(); acc=0; syncPlay(); requestAnimationFrame(tick); }
+function startPlay(){ if(S.playing) return; if(S.year>=Y1) setYear(Y0); S.playing=true; last=performance.now(); pos=y2x(S.year); syncPlay(); requestAnimationFrame(tick); }
 function stopPlay(){ if(!S.playing) return; S.playing=false; syncPlay(); }
 function togglePlay(){ S.playing?stopPlay():startPlay(); }
 function syncPlay(){ $("#play").setAttribute("aria-label",S.playing?"暂停":"播放"); $("#playico").innerHTML=S.playing?'<path d="M3 2h3v10H3zM8 2h3v10H8z"/>':'<path d="M3 1.5v11l9-5.5z"/>'; }
